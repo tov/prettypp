@@ -54,7 +54,7 @@ private:
     template <class... Arg>
     explicit basic_document(Arg&& ...);
 
-    enum class mode_ { broken, flat };
+    enum class mode_ { breaking, flat };
 
     struct cmd_
     {
@@ -104,6 +104,9 @@ public:
     /// Emplaces an annotation on a document.
     template <class... Arg>
     basic_document annotate(Arg&&...) &&;
+
+    /// Render to an ostream.
+    void render(std::ostream&, int width) const;
 };
 
 using document = basic_document<void, char>;
@@ -191,7 +194,7 @@ basic_document<Annot, CharT, Traits, Allocator>::fits(
     stack.clear();
     stack.push_back(next);
 
-    while (space_remaining > 0) {
+    while (space_remaining >= 0) {
         if (stack.empty()) {
             if (todo_begin == todo_end) return true;
             else stack.push_back(*todo_begin++);
@@ -227,7 +230,7 @@ basic_document<Annot, CharT, Traits, Allocator>::fits(
                 bool operator()(line_) const
                 {
                     switch (cmd.mode) {
-                        case mode_::broken:
+                        case mode_::breaking:
                             return true;
                         case mode_::flat:
                             --space_remaining;
@@ -261,6 +264,84 @@ basic_document<Annot, CharT, Traits, Allocator>::fits(
     }
 
     return false;
+}
+
+template<class Annot, class CharT, class Traits, class Allocator>
+void basic_document<Annot, CharT, Traits, Allocator>::render(
+        std::ostream& out, const int width) const
+{
+    int pos { 0 };
+    cmd_stack_ stack { cmd_{ 0, mode_::breaking, this } };
+    cmd_stack_ aux_stack;
+
+    while (!stack.empty()) {
+        cmd_ cmd = stack.back();
+        stack.pop_back();
+
+        struct Render_visitor
+        {
+            int& pos;
+            const int width;
+            cmd_& cmd;
+            cmd_stack_& stack;
+            cmd_stack_& aux_stack;
+            std::ostream& out;
+
+            void operator()(nil_) const
+            { }
+
+            void operator()(const append_& app) const
+            {
+                stack.push_back(cmd_{cmd.indent, cmd.mode, &app.second});
+                stack.push_back(cmd_{cmd.indent, cmd.mode, &app.first});
+            }
+
+            void operator()(const owned_text_& text) const
+            {
+                out << text.s;
+                pos += text.s.size();
+            }
+
+            void operator()(line_) const
+            {
+                switch (cmd.mode) {
+                    case mode_::breaking:
+                        out << '\n';
+                        for (size_t i = 0; i < cmd.indent; ++i) out << ' ';
+                        pos = cmd.indent;
+                        break;
+                    case mode_::flat:
+                        out << ' ';
+                        ++pos;
+                        break;
+                }
+            }
+
+            void operator()(const group_& group) const
+            {
+                cmd_ next { cmd.indent, mode_::flat, &group.document };
+
+                if (cmd.mode == mode_::breaking && !fits(next, stack, aux_stack, width - pos))
+                    next.mode = mode_::breaking;
+
+                stack.push_back(next);
+            }
+
+            void operator()(const nest_& nest) const
+            {
+                stack.push_back(cmd_{cmd.indent + nest.amount, cmd.mode, &nest.document});
+            }
+
+            void operator()(const annot_& annot) const
+            {
+                stack.push_back(cmd_{cmd.indent, cmd.mode, &annot.document});
+            }
+        };
+
+        std::visit(Render_visitor{pos, width, cmd, stack, aux_stack, out},
+                   *cmd.doc->pimpl_);
+    }
+
 }
 
 }
