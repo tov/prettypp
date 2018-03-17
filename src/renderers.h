@@ -9,6 +9,7 @@
 
 namespace pretty {
 
+/// A renderer that ignores annotations.
 template<
         class CharT = char,
         class Traits = std::char_traits<CharT>,
@@ -23,18 +24,25 @@ public:
     explicit no_annotation_renderer(Output& out)
             : out_(out) {}
 
+    /// Writes the given string.
     void write(std::basic_string_view<CharT, Traits> sv);
 
+    /// Writes a single character.
     void write(CharT c);
 
+    /// Writes a newline followed by the given indentation.
     void newline(int indent);
 
+    /// Enters an annotation (no-op).
     template<class Annot>
     void push_annotation(const Annot&);
 
+    /// Leaves an annotation.
     void pop_annotation();
 };
 
+/// A renderer that expects annotations to be pairs whose elements can be
+/// stream-inserted before and after the annotated text.
 template<
         class AnnotText,
         class CharT = char,
@@ -54,7 +62,10 @@ public:
     using super::write;
     using super::newline;
 
+    /// Enters an annotation.
     void push_annotation(const std::pair<AnnotText, AnnotText>&);
+
+    /// Leaves an annotation.
     void pop_annotation();
 };
 
@@ -116,7 +127,7 @@ void
 simple_annotation_renderer<AnnotText, CharT, Traits, Output>::pop_annotation()
 {
     assert( !annot_stack_.empty() );
-    out_ << annot_stack_.back();
+    out_ << *annot_stack_.back();
     annot_stack_.pop_back();
 }
 
