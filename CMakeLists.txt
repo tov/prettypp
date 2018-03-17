@@ -13,4 +13,5 @@ endmacro (add_executable17)
 add_executable17(pretty_test
         test/pretty_test.cpp
         test/catch_main.cpp
+        src/renderers.h
         src/pretty.h)

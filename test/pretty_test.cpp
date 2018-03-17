@@ -24,7 +24,8 @@ TEST_CASE("construct hello world")
 std::string render_string(const document& doc, int width)
 {
     std::ostringstream out;
-    doc.render(out, width);
+    no_annotation_renderer renderer(out);
+    doc.render(renderer, width);
     return out.str();
 }
 

@@ -1,7 +1,8 @@
 #pragma once
 
+#include "renderers.h"
+
 #include <memory>
-#include <ostream>
 #include <string>
 #include <type_traits>
 #include <variant>
@@ -105,8 +106,9 @@ public:
     template <class... Arg>
     basic_document annotate(Arg&&...) &&;
 
-    /// Render to an ostream.
-    void render(std::ostream&, int width) const;
+    /// Render to a generic renderer.
+    template <class Renderer>
+    void render(Renderer&, int width) const;
 };
 
 using document = basic_document<void, char>;
@@ -266,13 +268,15 @@ basic_document<Annot, CharT, Traits, Allocator>::fits(
     return false;
 }
 
-template<class Annot, class CharT, class Traits, class Allocator>
+template <class Annot, class CharT, class Traits, class Allocator>
+template <class Renderer>
 void basic_document<Annot, CharT, Traits, Allocator>::render(
-        std::ostream& out, const int width) const
+        Renderer& out, const int width) const
 {
     int pos { 0 };
     cmd_stack_ stack { cmd_{ 0, mode_::breaking, this } };
     cmd_stack_ aux_stack;
+    std::vector<size_t> annot_stack;
 
     while (!stack.empty()) {
         cmd_ cmd = stack.back();
@@ -285,7 +289,8 @@ void basic_document<Annot, CharT, Traits, Allocator>::render(
             cmd_& cmd;
             cmd_stack_& stack;
             cmd_stack_& aux_stack;
-            std::ostream& out;
+            std::vector<size_t>& annot_stack;
+            Renderer& out;
 
             void operator()(nil_) const
             { }
@@ -298,7 +303,7 @@ void basic_document<Annot, CharT, Traits, Allocator>::render(
 
             void operator()(const owned_text_& text) const
             {
-                out << text.s;
+                out.write(text.s);
                 pos += text.s.size();
             }
 
@@ -306,12 +311,11 @@ void basic_document<Annot, CharT, Traits, Allocator>::render(
             {
                 switch (cmd.mode) {
                     case mode_::breaking:
-                        out << '\n';
-                        for (size_t i = 0; i < cmd.indent; ++i) out << ' ';
+                        out.newline(cmd.indent);
                         pos = cmd.indent;
                         break;
                     case mode_::flat:
-                        out << ' ';
+                        out.write(' ');
                         ++pos;
                         break;
                 }
@@ -334,14 +338,19 @@ void basic_document<Annot, CharT, Traits, Allocator>::render(
 
             void operator()(const annot_& annot) const
             {
+                annot_stack.push_back(stack.size());
                 stack.push_back(cmd_{cmd.indent, cmd.mode, &annot.document});
             }
         };
 
-        std::visit(Render_visitor{pos, width, cmd, stack, aux_stack, out},
+        std::visit(Render_visitor{pos, width, cmd, stack,
+                                  aux_stack, annot_stack, out},
                    *cmd.doc->pimpl_);
-    }
 
+        if (!annot_stack.empty() && annot_stack.back() == stack.size()) {
+            annot_stack.pop_back();
+        }
+    }
 }
 
 }
