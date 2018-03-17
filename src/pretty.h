@@ -5,6 +5,7 @@
 #include <string>
 #include <type_traits>
 #include <variant>
+#include <vector>
 
 /// Pretty-printing combinators.
 namespace pretty {
@@ -52,6 +53,22 @@ private:
 
     template <class... Arg>
     explicit basic_document(Arg&& ...);
+
+    enum class mode_ { broken, flat };
+
+    struct cmd_
+    {
+        int indent;
+        mode_ mode;
+        const basic_document* doc;
+    };
+
+    using cmd_stack_ = std::vector<cmd_>;
+
+    static bool fits(cmd_ next,
+                     const cmd_stack_& todo,
+                     cmd_stack_& stack,
+                     int space_remaining);
 
 public:
     /// Constructs the empty (nil) document.
@@ -148,7 +165,7 @@ auto basic_document<Annot, CharT, Traits, Allocator>::group() && -> basic_docume
 }
 
 template<class Annot, class CharT, class Traits, class Allocator>
-auto basic_document<Annot, CharT, Traits, Allocator>::nest(int amount)&& -> basic_document
+auto basic_document<Annot, CharT, Traits, Allocator>::nest(int amount) && -> basic_document
 {
     return basic_document(nest_ {amount, std::move(*this) });
 }
@@ -159,6 +176,91 @@ auto basic_document<Annot, CharT, Traits, Allocator>::annotate(Arg&&... arg) && 
 {
     return basic_document(annot_ { Annot(std::forward<Arg>(arg)...),
                                    std::move(*this) });
+}
+
+template<class Annot, class CharT, class Traits, class Allocator>
+bool
+basic_document<Annot, CharT, Traits, Allocator>::fits(
+        cmd_ next,
+        const cmd_stack_& todo,
+        cmd_stack_& stack,
+        int space_remaining)
+{
+    auto todo_begin = todo.rbegin();
+    auto todo_end   = todo.rend();
+    stack.clear();
+    stack.push_back(next);
+
+    while (space_remaining > 0) {
+        if (stack.empty()) {
+            if (todo_begin == todo_end) return true;
+            else stack.push_back(*todo_begin++);
+        } else {
+            cmd_ cmd {stack.back()};
+            stack.pop_back();
+
+            struct Fits_visitor
+            {
+                const cmd_& cmd;
+                cmd_stack_& stack;
+                int& space_remaining;
+
+                bool operator()(nil_) const
+                {
+                    return false;
+                }
+
+                bool operator()(const append_& app) const
+                {
+                    stack.push_back(cmd_{ cmd.indent, cmd.mode, &app.second });
+                    stack.push_back(cmd_{ cmd.indent, cmd.mode, &app.first });
+                    return false;
+                }
+
+                bool operator()(const owned_text_& text) const
+                {
+                    // This only works for ASCII :(
+                    space_remaining -= text.s.size();
+                    return false;
+                }
+
+                bool operator()(line_) const
+                {
+                    switch (cmd.mode) {
+                        case mode_::broken:
+                            return true;
+                        case mode_::flat:
+                            --space_remaining;
+                            return false;
+                    }
+                }
+
+                bool operator()(const group_& group) const
+                {
+                    stack.push_back(cmd_{ cmd.indent, cmd.mode, &group.document });
+                    return false;
+                }
+
+                bool operator()(const nest_& nest) const
+                {
+                    stack.push_back(cmd_{ cmd.indent + nest.amount, cmd.mode, &nest.document });
+                    return false;
+                }
+
+                bool operator()(const annot_& annot) const
+                {
+                    stack.push_back(cmd_{ cmd.indent, cmd.mode, &annot.document });
+                    return false;
+                }
+            };
+
+            if (std::visit(Fits_visitor{cmd, stack, space_remaining},
+                           *cmd.doc->pimpl_))
+                return true;
+        }
+    }
+
+    return false;
 }
 
 }
