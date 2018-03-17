@@ -1,0 +1,9 @@
+# CMake
+build/
+cmake-build-*/
+
+# CLion
+.idea/
+
+# Doxygen
+doc/
