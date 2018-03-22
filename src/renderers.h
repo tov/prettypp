@@ -10,11 +10,7 @@
 namespace pretty {
 
 /// A renderer that ignores annotations.
-template<
-        class CharT = char,
-        class Traits = std::char_traits<CharT>,
-        class Output = std::basic_ostream<CharT, Traits>
->
+template<class Output = std::ostream>
 class no_annotation_renderer
 {
 protected:
@@ -25,10 +21,10 @@ public:
             : out_(out) {}
 
     /// Writes the given string.
-    void write(std::basic_string_view<CharT, Traits> sv);
+    void write(std::string_view sv);
 
     /// Writes a single character.
-    void write(CharT c);
+    void write(char c);
 
     /// Writes a newline followed by the given indentation.
     void newline(int indent);
@@ -45,14 +41,12 @@ public:
 /// stream-inserted before and after the annotated text.
 template<
         class AnnotText,
-        class CharT = char,
-        class Traits = std::char_traits<CharT>,
-        class Output = std::basic_ostream<CharT, Traits>
+        class Output = std::ostream
 >
-class simple_annotation_renderer : no_annotation_renderer<CharT, Traits, Output>
+class simple_annotation_renderer : no_annotation_renderer<Output>
 {
 private:
-    using super = no_annotation_renderer<CharT, Traits, Output>;
+    using super = no_annotation_renderer<Output>;
     using super::out_;
 
     std::vector<AnnotText*> annot_stack_;
@@ -73,26 +67,24 @@ public:
 ///// IMPLEMENTATION
 /////
 
-template<class CharT, class Traits, class Output>
-void no_annotation_renderer<CharT, Traits, Output>::write(
-        std::basic_string_view<CharT, Traits> sv)
+template<class Output>
+void no_annotation_renderer<Output>::write(std::string_view sv)
 {
     out_.write(sv.data(), sv.size());
 }
 
-template<class CharT, class Traits, class Output>
-void no_annotation_renderer<CharT, Traits, Output>::write(CharT c)
+template<class Output>
+void no_annotation_renderer<Output>::write(char c)
 {
     out_.write(&c, 1);
 }
 
 
-template<class CharT, class Traits, class Output>
+template<class Output>
 void
-no_annotation_renderer<CharT, Traits, Output>::newline(int indent)
+no_annotation_renderer<Output>::newline(int indent)
 {
-    static const std::basic_string<CharT, Traits>
-            SPACES(80, CharT(' '));
+    static const std::string SPACES(80, ' ');
 
     out_.write("\n", 1);
 
@@ -103,28 +95,25 @@ no_annotation_renderer<CharT, Traits, Output>::newline(int indent)
     }
 }
 
-template<class CharT, class Traits, class Output>
+template<class Output>
 template<class Annot>
-void no_annotation_renderer<CharT, Traits, Output>::push_annotation(
-        const Annot&)
+void no_annotation_renderer<Output>::push_annotation(const Annot&)
 { }
 
-template<class CharT, class Traits, class Output>
-void no_annotation_renderer<CharT, Traits, Output>::pop_annotation()
+template<class Output>
+void no_annotation_renderer<Output>::pop_annotation()
 { }
 
-template<class AnnotText, class CharT, class Traits, class Output>
-void
-simple_annotation_renderer<AnnotText, CharT, Traits, Output>::push_annotation(
+template<class AnnotText, class Output>
+void simple_annotation_renderer<AnnotText, Output>::push_annotation(
         const std::pair<AnnotText, AnnotText>& annot)
 {
     out_ << annot.first;
     annot_stack_.push_back(&annot.second);
 }
 
-template<class AnnotText, class CharT, class Traits, class Output>
-void
-simple_annotation_renderer<AnnotText, CharT, Traits, Output>::pop_annotation()
+template<class AnnotText, class Output>
+void simple_annotation_renderer<AnnotText, Output>::pop_annotation()
 {
     assert( !annot_stack_.empty() );
     out_ << *annot_stack_.back();

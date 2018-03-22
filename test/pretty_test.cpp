@@ -4,7 +4,7 @@
 
 using namespace pretty;
 
-template class ::pretty::basic_document<void, char>;
+template class ::pretty::annotated_document<void>;
 
 TEST_CASE("trivial")
 {
