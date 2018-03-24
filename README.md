@@ -1,1 +1,1 @@
-# pretty++: Walder-Leijen pretty printing combinators for C++17
+# pretty++: Wadler-Leijen pretty printing combinators for C++17
