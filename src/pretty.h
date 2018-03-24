@@ -28,6 +28,7 @@ public:
 
 private:
     struct owned_text_ { text_type s; };
+    struct borrowed_text_ { text_view_type sv; };
     struct nil_ {};
     struct line_ {};
     struct append_ { annotated_document first, second; };
@@ -37,6 +38,7 @@ private:
 
     using repr_ = std::variant<
             owned_text_,
+            borrowed_text_,
             nil_,
             line_,
             append_,
@@ -84,6 +86,9 @@ public:
     /// Constructs a text document, emplacing the string.
     template <class... Arg>
     static annotated_document text(Arg&& ...);
+
+    /// Constructs a text view document.
+    static annotated_document view(text_view_type sv);
 
     /// Constructs a line-break document.
     static annotated_document line();
@@ -137,6 +142,13 @@ template<class... Arg>
 auto annotated_document<Annot>::text(Arg&& ... arg) -> annotated_document
 {
     return annotated_document(owned_text_ { text_type(std::forward<Arg>(arg)...) });
+}
+
+template<class Annot>
+auto annotated_document<Annot>::view(
+        annotated_document::text_view_type sv) -> annotated_document
+{
+    return annotated_document(borrowed_text_ { sv });
 }
 
 template<class Annot>
@@ -224,6 +236,12 @@ annotated_document<Annot>::fits(
                     return false;
                 }
 
+                bool operator()(borrowed_text_ text) const
+                {
+                    space_remaining -= text.sv.size();
+                    return false;
+                }
+
                 bool operator()(line_) const
                 {
                     switch (cmd.mode) {
@@ -300,6 +318,11 @@ void annotated_document<Annot>::render(
             {
                 out.write(text.s);
                 pos += text.s.size();
+            }
+
+            void operator()(borrowed_text_ text) const {
+                out.write(text.sv);
+                pos += text.sv.size();
             }
 
             void operator()(line_) const

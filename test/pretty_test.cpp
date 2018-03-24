@@ -33,7 +33,7 @@ TEST_CASE("hello world wrapping")
 {
     document d = document::text("hello")
             .append(document::line())
-            .append(document::text("world"))
+            .append(document::view("world"))
             .group();
 
     std::ostringstream out;
