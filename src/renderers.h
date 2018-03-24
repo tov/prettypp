@@ -9,16 +9,14 @@
 
 namespace pretty {
 
-/// A renderer that ignores annotations.
 template<class Output = std::ostream>
-class no_annotation_renderer
+class base_renderer
 {
 protected:
     Output& out_;
 
 public:
-    explicit no_annotation_renderer(Output& out)
-            : out_(out) {}
+    explicit base_renderer(Output& out) : out_(out) {}
 
     /// Writes the given string.
     void write(std::string_view sv);
@@ -28,8 +26,18 @@ public:
 
     /// Writes a newline followed by the given indentation.
     void newline(int indent);
+};
 
-    /// Enters an annotation (no-op).
+/// A renderer that ignores annotations.
+template<class Output = std::ostream>
+class no_annotation_renderer : private base_renderer<Output>
+{
+public:
+    using super = base_renderer<Output>;
+    using super::base_renderer;
+    using super::write;
+    using super::newline;
+
     template<class Annot>
     void push_annotation(const Annot&);
 
@@ -43,16 +51,16 @@ template<
         class AnnotText,
         class Output = std::ostream
 >
-class simple_annotation_renderer : no_annotation_renderer<Output>
+class simple_annotation_renderer : base_renderer<Output>
 {
 private:
-    using super = no_annotation_renderer<Output>;
+    using super = base_renderer<Output>;
     using super::out_;
 
     std::vector<AnnotText*> annot_stack_;
 
 public:
-    using super::no_annotation_renderer;
+    using super::base_renderer;
     using super::write;
     using super::newline;
 
@@ -68,13 +76,13 @@ public:
 /////
 
 template<class Output>
-void no_annotation_renderer<Output>::write(std::string_view sv)
+void base_renderer<Output>::write(std::string_view sv)
 {
     out_.write(sv.data(), sv.size());
 }
 
 template<class Output>
-void no_annotation_renderer<Output>::write(char c)
+void base_renderer<Output>::write(char c)
 {
     out_.write(&c, 1);
 }
@@ -82,7 +90,7 @@ void no_annotation_renderer<Output>::write(char c)
 
 template<class Output>
 void
-no_annotation_renderer<Output>::newline(int indent)
+base_renderer<Output>::newline(int indent)
 {
     static const std::string SPACES(80, ' ');
 
