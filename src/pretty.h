@@ -35,7 +35,7 @@ private:
     struct owned_text_ { text_type s; size_t size; };
     struct borrowed_text_ { text_view_type sv; size_t size; };
     struct nil_ {};
-    struct line_ {};
+    struct line_ { bool no_space; };
     struct append_ { annotated_document first, second; };
     struct group_ { annotated_document document; };
     struct nest_ { int amount; annotated_document document; };
@@ -92,18 +92,21 @@ public:
     template <class... Arg>
     static annotated_document text(Arg&&...);
 
-    /// Constructs a text document with the specified width.
+    /// Constructs a text document with the specified width, which may differ
+    /// from the length C++ considers the string to have.
     template <class... Arg>
     static annotated_document text_size(size_t, Arg&&...);
 
     /// Constructs a text view document.
     static annotated_document view(text_view_type sv);
 
-    /// Constructs a text view document with the specified width.
+    /// Constructs a text view document with the specified width, which my
+    /// differ from the length C++ considers the string_view to have.
     static annotated_document view_size(size_t, text_view_type);
 
-    /// Constructs a line-break document.
-    static annotated_document line();
+    /// Constructs a line-break document. By default, inserts a space when
+    /// broken, but `no_space` set to true overrides this behavior.
+    static annotated_document line(bool no_space = false);
 
     /// Appends two documents.
     annotated_document append(annotated_document) &&;
@@ -189,9 +192,9 @@ annotated_document<Annot>::annotated_document(Arg&& ... arg)
 { }
 
 template<class Annot>
-auto annotated_document<Annot>::line() -> annotated_document
+auto annotated_document<Annot>::line(bool no_space) -> annotated_document
 {
-    return annotated_document(line_ {});
+    return annotated_document(line_ { no_space });
 }
 
 template<class Annot>
@@ -273,13 +276,13 @@ annotated_document<Annot>::fits(
                     return false;
                 }
 
-                bool operator()(line_) const
+                bool operator()(line_ line) const
                 {
                     switch (cmd.mode) {
                         case mode_::breaking:
                             return true;
                         case mode_::flat:
-                            --space_remaining;
+                            if (!line.no_space) --space_remaining;
                             return false;
                     }
                 }
@@ -356,7 +359,7 @@ void annotated_document<Annot>::render(
                 pos += text.size;
             }
 
-            void operator()(line_) const
+            void operator()(line_ line) const
             {
                 switch (cmd.mode) {
                     case mode_::breaking:
@@ -364,8 +367,10 @@ void annotated_document<Annot>::render(
                         pos = cmd.indent;
                         break;
                     case mode_::flat:
-                        out.write(' ');
-                        ++pos;
+                        if (!line.no_space) {
+                            out.write(' ');
+                            ++pos;
+                        }
                         break;
                 }
             }
@@ -389,7 +394,7 @@ void annotated_document<Annot>::render(
             {
                 out.push_annotation(annot.annot);
                 annot_stack.push_back(stack.size());
-                stack.push_back(cmd_{cmd.indent, cmd.mode, &annot.document});
+
             }
         };
 
