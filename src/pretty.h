@@ -32,8 +32,8 @@ public:
             Annot>;
 
 private:
-    struct owned_text_ { text_type s; };
-    struct borrowed_text_ { text_view_type sv; };
+    struct owned_text_ { text_type s; size_t size; };
+    struct borrowed_text_ { text_view_type sv; size_t size; };
     struct nil_ {};
     struct line_ {};
     struct append_ { annotated_document first, second; };
@@ -90,10 +90,17 @@ public:
 
     /// Constructs a text document, emplacing the string.
     template <class... Arg>
-    static annotated_document text(Arg&& ...);
+    static annotated_document text(Arg&&...);
+
+    /// Constructs a text document with the specified width.
+    template <class... Arg>
+    static annotated_document text_size(size_t, Arg&&...);
 
     /// Constructs a text view document.
     static annotated_document view(text_view_type sv);
+
+    /// Constructs a text view document with the specified width.
+    static annotated_document view_size(size_t, text_view_type);
 
     /// Constructs a line-break document.
     static annotated_document line();
@@ -147,14 +154,32 @@ template<class Annot>
 template<class... Arg>
 auto annotated_document<Annot>::text(Arg&& ... arg) -> annotated_document
 {
-    return annotated_document(owned_text_ { text_type(std::forward<Arg>(arg)...) });
+    text_type str(std::forward<Arg>(arg)...);
+    return text_size(str.size(), std::move(str));
+}
+
+template<class Annot>
+template<class... Arg>
+auto annotated_document<Annot>::text_size(size_t size,
+                                          Arg&&... arg) -> annotated_document
+{
+    return annotated_document(owned_text_{ text_type(std::forward<Arg>(arg)...),
+                                           size });
 }
 
 template<class Annot>
 auto annotated_document<Annot>::view(
         annotated_document::text_view_type sv) -> annotated_document
 {
-    return annotated_document(borrowed_text_ { sv });
+    return view_size(sv.size(), sv);
+}
+
+template<class Annot>
+auto annotated_document<Annot>::view_size(
+        size_t size,
+        annotated_document::text_view_type sv) -> annotated_document
+{
+    return annotated_document(borrowed_text_ { sv, size });
 }
 
 template<class Annot>
@@ -238,13 +263,13 @@ annotated_document<Annot>::fits(
                 bool operator()(const owned_text_& text) const
                 {
                     // This only works for ASCII :(
-                    space_remaining -= text.s.size();
+                    space_remaining -= text.size;
                     return false;
                 }
 
                 bool operator()(borrowed_text_ text) const
                 {
-                    space_remaining -= text.sv.size();
+                    space_remaining -= text.size;
                     return false;
                 }
 
@@ -323,12 +348,12 @@ void annotated_document<Annot>::render(
             void operator()(const owned_text_& text) const
             {
                 out.write(text.s);
-                pos += text.s.size();
+                pos += text.size;
             }
 
             void operator()(borrowed_text_ text) const {
                 out.write(text.sv);
-                pos += text.sv.size();
+                pos += text.size;
             }
 
             void operator()(line_) const
