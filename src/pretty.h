@@ -11,16 +11,21 @@
 /// Pretty-printing combinators.
 namespace pretty {
 
+/// Class to indicate no annotations.
 class no_annotation {};
 
-/// A document, parameterized by character type and string allocator.
+/// A document, parameterized by annotation type.
 template<class Annot>
 class annotated_document
 {
 public:
+    /// Owned text is represented using `std::string`.
     using text_type = std::string;
+
+    /// Borrowed text is represented using `std::string_view`.
     using text_view_type = std::string_view;
 
+    /// The annotation type.
     using annot_type =
         std::conditional<std::is_same_v<void, Annot>,
             no_annotation,
@@ -111,6 +116,7 @@ public:
     void render(Renderer&, int width) const;
 };
 
+/// An unannotated document.
 using document = annotated_document<void>;
 
 /////

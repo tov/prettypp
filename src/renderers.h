@@ -9,6 +9,8 @@
 
 namespace pretty {
 
+namespace detail {
+
 template<class Output = std::ostream>
 class base_renderer
 {
@@ -28,12 +30,14 @@ public:
     void newline(int indent);
 };
 
+}
+
 /// A renderer that ignores annotations.
 template<class Output = std::ostream>
-class no_annotation_renderer : private base_renderer<Output>
+class no_annotation_renderer : private detail::base_renderer<Output>
 {
 public:
-    using super = base_renderer<Output>;
+    using super = detail::base_renderer<Output>;
     using super::base_renderer;
     using super::write;
     using super::newline;
@@ -45,16 +49,16 @@ public:
     void pop_annotation();
 };
 
-/// A renderer that expects annotations to be pairs whose elements can be
+/// A renderer that expects annotations to be `std::pair`s whose elements can be
 /// stream-inserted before and after the annotated text.
 template<
         class AnnotText,
         class Output = std::ostream
 >
-class simple_annotation_renderer : base_renderer<Output>
+class simple_annotation_renderer : detail::base_renderer<Output>
 {
 private:
-    using super = base_renderer<Output>;
+    using super = detail::base_renderer<Output>;
     using super::out_;
 
     std::vector<AnnotText*> annot_stack_;
@@ -75,6 +79,8 @@ public:
 ///// IMPLEMENTATION
 /////
 
+namespace detail {
+
 template<class Output>
 void base_renderer<Output>::write(std::string_view sv)
 {
@@ -86,7 +92,6 @@ void base_renderer<Output>::write(char c)
 {
     out_.write(&c, 1);
 }
-
 
 template<class Output>
 void
@@ -101,6 +106,8 @@ base_renderer<Output>::newline(int indent)
         out_.write(SPACES.data(), amount);
         indent -= amount;
     }
+}
+
 }
 
 template<class Output>
