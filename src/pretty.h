@@ -356,6 +356,7 @@ void annotated_document<Annot>::render(
 
             void operator()(const annot_& annot) const
             {
+                out.push_annotation(annot.annot);
                 annot_stack.push_back(stack.size());
                 stack.push_back(cmd_{cmd.indent, cmd.mode, &annot.document});
             }
@@ -367,6 +368,7 @@ void annotated_document<Annot>::render(
 
         if (!annot_stack.empty() && annot_stack.back() == stack.size()) {
             annot_stack.pop_back();
+            out.pop_annotation();
         }
     }
 }
