@@ -2,6 +2,7 @@
 
 #include "renderers.h"
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -40,6 +41,7 @@ private:
     struct group_ { annotated_document document; };
     struct nest_ { int amount; annotated_document document; };
     struct annot_ { annot_type annot; annotated_document document; };
+    struct align_ { annotated_document document; };
 
     using repr_ = std::variant<
             owned_text_,
@@ -49,7 +51,8 @@ private:
             append_,
             group_,
             nest_,
-            annot_
+            annot_,
+            align_
     >;
 
     std::unique_ptr<repr_> pimpl_;
@@ -116,6 +119,9 @@ public:
 
     /// Nests by the given amount.
     annotated_document nest(int amount) &&;
+
+    /// Aligns the document along the left.
+    annotated_document align() &&;
 
     /// Emplaces an annotation on a document.
     template <class... Arg>
@@ -217,6 +223,12 @@ auto annotated_document<Annot>::nest(int amount) && -> annotated_document
 }
 
 template<class Annot>
+auto annotated_document<Annot>::align() && -> annotated_document
+{
+    return annotated_document(align_ { std::move(*this) });
+}
+
+template<class Annot>
 template<class... Arg>
 auto annotated_document<Annot>::annotate(Arg&&... arg) && -> annotated_document
 {
@@ -296,6 +308,12 @@ annotated_document<Annot>::fits(
                 bool operator()(const nest_& nest) const
                 {
                     stack.push_back(cmd_{ cmd.indent + nest.amount, cmd.mode, &nest.document });
+                    return false;
+                }
+
+                bool operator()(const align_& align) const
+                {
+                    stack.push_back(cmd_{ cmd.indent, cmd.mode, &align.document });
                     return false;
                 }
 
@@ -388,6 +406,11 @@ void annotated_document<Annot>::render(
             void operator()(const nest_& nest) const
             {
                 stack.push_back(cmd_{cmd.indent + nest.amount, cmd.mode, &nest.document});
+            }
+
+            void operator()(const align_& align) const
+            {
+                stack.push_back(cmd_{pos, cmd.mode, &align.document});
             }
 
             void operator()(const annot_& annot) const
